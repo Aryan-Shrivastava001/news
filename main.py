@@ -93,12 +93,13 @@ def run_pipeline(dry_run: bool = False, force_topic: str = None) -> bool:
         article_img = scraper.extract_og_image_from_url(chosen_story.link)
 
     fetcher = AssetFetcher()
-    images = fetcher.fetch_game_visuals(
+    media = fetcher.fetch_game_visuals(
+        article_url=chosen_story.link,
         article_image_url=article_img,
         game_name=script_data.game_name,
         target_dir=work_dir
     )
-    logger.info(f"Gathered {len(images)} visual asset(s).")
+    logger.info(f"Gathered {len(media.images)} image(s) and {len(media.videos)} video(s).")
 
     # 5. Fish Anchor 2-Frame Lip-Sync Video
     lip_sync = FishLipSyncEngine(closed_sprite=fish_closed, open_sprite=fish_open)
@@ -116,7 +117,8 @@ def run_pipeline(dry_run: bool = False, force_topic: str = None) -> bool:
     final_video = work_dir / "short_ready.mp4"
     bg_music = AUDIO_DIR / "bg_music.mp3"
     compositor.assemble_short(
-        images=images,
+        images=media.images,
+        videos=media.videos,
         voiceover_audio=voice_audio,
         fish_anchor_video=fish_video,
         subtitles_ass=subtitles_path,
@@ -140,7 +142,7 @@ def run_pipeline(dry_run: bool = False, force_topic: str = None) -> bool:
         )
 
     # 9. Record to cache so it never repeats
-    if video_id:
+    if video_id and video_id not in ("DRY_RUN_SUCCESS", "DRY_RUN_VIDEO_ID"):
         dedup.record_posted(chosen_story)
         logger.info("News item successfully marked as posted.")
 
