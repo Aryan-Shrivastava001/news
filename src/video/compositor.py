@@ -37,7 +37,7 @@ class VideoCompositor:
             f"[0:v]scale={self.width}:{self.height}:force_original_aspect_ratio=increase,"
             f"crop={self.width}:{self.height},boxblur=25:5,eq=brightness=-0.15[bg];"
             f"[0:v]scale=1000:-1:force_original_aspect_ratio=decrease[fg];"
-            f"[bg][fg]overlay=(W-w)/2:380,"
+            f"[bg][fg]overlay=(W-w)/2:250,"
             f"zoompan=z={z_expr}:d={int(duration*self.fps)}:x='iw/2-(iw/zoom/2)':y='ih/2-(ih/zoom/2)':s={self.width}x{self.height}[out]"
         )
         
@@ -58,7 +58,7 @@ class VideoCompositor:
             f"[0:v]scale={self.width}:{self.height}:force_original_aspect_ratio=increase,"
             f"crop={self.width}:{self.height},boxblur=25:5,eq=brightness=-0.15[bg];"
             f"[0:v]scale=1000:-1:force_original_aspect_ratio=decrease[fg];"
-            f"[bg][fg]overlay=(W-w)/2:380[out]"
+            f"[bg][fg]overlay=(W-w)/2:250[out]"
         )
         cmd = [
             "ffmpeg", "-y", "-i", str(video_path),
@@ -190,8 +190,8 @@ class VideoCompositor:
 
         # Place fish anchor over the pre-rendered slideshow
         filter_parts = [
-            f"[1:v]scale=450:450[fish]",
-            f"[0:v][fish]overlay=(W-w)/2:{self.height-480}[with_fish]"
+            f"[1:v]scale=1080:-1,crop=1080:820:0:ih-820[fish]",
+            f"[0:v][fish]overlay=0:H-h[with_fish]"
         ]
 
         if sub_filter:

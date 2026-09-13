@@ -59,9 +59,14 @@ def run_pipeline(dry_run: bool = False, force_topic: str = None) -> bool:
             logger.warning("No news items retrieved from any feed.")
             return False
 
-        chosen_story = dedup.select_best_story(items)
-        if not chosen_story:
+        top_stories = dedup.select_top_stories(items)
+        if not top_stories:
             logger.info("No new unposted stories found in this run cycle. Exiting gracefully.")
+            return True
+
+        writer = ScriptWriter(api_key=GEMINI_API_KEY)
+        chosen_story = writer.pick_best_story(top_stories)
+        if not chosen_story:
             return True
 
     logger.info(f"Target News Story: '{chosen_story.title}' ({chosen_story.source})")

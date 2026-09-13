@@ -58,15 +58,15 @@ class NewsDeduplicator:
                 return True
         return False
 
-    def select_best_story(self, items: List[NewsItem]) -> Optional[NewsItem]:
+    def select_top_stories(self, items: List[NewsItem], limit: int = 5) -> List[NewsItem]:
         """
         Filters out duplicates and scores the remaining stories to pick
-        the most viral candidate for the next Short.
+        the top candidates for the AI to choose from.
         """
         candidates = [item for item in items if not self.is_duplicate(item)]
         if not candidates:
             logger.info("All fetched news items were already posted.")
-            return None
+            return []
 
         scored: List[Tuple[float, NewsItem]] = []
         for item in candidates:
@@ -74,9 +74,12 @@ class NewsDeduplicator:
             scored.append((score, item))
 
         scored.sort(key=lambda x: x[0], reverse=True)
-        best_score, best_item = scored[0]
-        logger.info(f"Selected top story (Score: {best_score:.1f}): {best_item.title} [{best_item.source}]")
-        return best_item
+        top_items = [item for score, item in scored[:limit]]
+        
+        for i, item in enumerate(top_items):
+            logger.info(f"Top {i+1} candidate (Score: {scored[i][0]:.1f}): {item.title} [{item.source}]")
+            
+        return top_items
 
     def record_posted(self, item: NewsItem):
         """Mark item as posted and persist to disk."""
@@ -100,6 +103,14 @@ class NewsDeduplicator:
         # Has direct image boost
         if item.image_url:
             score += 4.0
+
+        # Math Brain (Reddit Upvotes & Comments)
+        if item.upvotes > 0:
+            # e.g., 5000 upvotes = +50 points
+            score += min(item.upvotes / 100.0, 50.0) 
+        if item.comments > 0:
+            # e.g., 1000 comments = +30 points
+            score += min(item.comments / 33.3, 30.0)
 
         return score
 

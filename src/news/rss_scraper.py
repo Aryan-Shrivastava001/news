@@ -25,6 +25,8 @@ class NewsItem:
     published_at: datetime
     image_url: Optional[str] = None
     tags: List[str] = field(default_factory=list)
+    upvotes: int = 0
+    comments: int = 0
 
 class GamingNewsScraper:
     FEEDS = [
@@ -34,8 +36,10 @@ class GamingNewsScraper:
         {"name": "PC Gamer", "url": "https://www.pcgamer.com/rss/"},
         {"name": "Gematsu", "url": "https://www.gematsu.com/feed"},
         {"name": "Eurogamer", "url": "https://www.eurogamer.net/feed"},
-        {"name": "Reddit r/Games", "url": "https://www.reddit.com/r/Games/hot/.rss"},
-        {"name": "Reddit r/GamingLeaksAndRumours", "url": "https://www.reddit.com/r/GamingLeaksAndRumours/hot/.rss"},
+        {"name": "Reddit r/Games", "url": "https://www.reddit.com/r/Games/hot.json"},
+        {"name": "Reddit r/GamingLeaksAndRumours", "url": "https://www.reddit.com/r/GamingLeaksAndRumours/hot.json"},
+        {"name": "Reddit r/gaming", "url": "https://www.reddit.com/r/gaming/hot.json"},
+        {"name": "Reddit r/pcgaming", "url": "https://www.reddit.com/r/pcgaming/hot.json"},
     ]
 
     def __init__(self, request_timeout: int = 10):
@@ -60,11 +64,15 @@ class GamingNewsScraper:
                     logger.warning(f"Failed to fetch {feed_info['name']}: HTTP {resp.status_code}")
                     continue
 
-                parsed = feedparser.parse(resp.content)
-                for entry in parsed.entries:
-                    item = self._parse_entry(entry, feed_info["name"])
-                    if item:
-                        all_items.append(item)
+                if ".json" in feed_info["url"]:
+                    items = self._parse_reddit_json(resp.json(), feed_info["name"])
+                    all_items.extend(items)
+                else:
+                    parsed = feedparser.parse(resp.content)
+                    for entry in parsed.entries:
+                        item = self._parse_entry(entry, feed_info["name"])
+                        if item:
+                            all_items.append(item)
             except Exception as e:
                 logger.warning(f"Error reading feed {feed_info['name']}: {e}")
 
@@ -79,6 +87,50 @@ class GamingNewsScraper:
         fallback_items = [i for i in all_items if i.published_at >= fallback_cutoff]
         logger.info(f"No items in last {max_age_hours}h; fallback returned {len(fallback_items)} items in {fallback_hours}h.")
         return sorted(fallback_items, key=lambda x: x.published_at, reverse=True)
+
+    def _parse_reddit_json(self, data: dict, source: str) -> List[NewsItem]:
+        items = []
+        try:
+            children = data.get("data", {}).get("children", [])
+            for child in children:
+                post = child.get("data", {})
+                
+                # Skip stickied posts
+                if post.get("stickied"):
+                    continue
+                    
+                title = post.get("title", "").strip()
+                url = post.get("url", "")
+                permalink = post.get("permalink", "")
+                link = f"https://www.reddit.com{permalink}" if permalink else url
+                
+                if not title or not link:
+                    continue
+                    
+                item_id = post.get("id", link)
+                published_at = datetime.fromtimestamp(post.get("created_utc", time.time()), tz=timezone.utc)
+                summary = post.get("selftext", "")
+                upvotes = post.get("score", 0)
+                comments = post.get("num_comments", 0)
+                
+                image_url = None
+                if post.get("url_overridden_by_dest", "").lower().endswith((".jpg", ".jpeg", ".png", ".webp")):
+                    image_url = post.get("url_overridden_by_dest")
+                    
+                items.append(NewsItem(
+                    id=item_id,
+                    title=title,
+                    link=link,
+                    summary=summary,
+                    source=source,
+                    published_at=published_at,
+                    image_url=image_url,
+                    upvotes=upvotes,
+                    comments=comments
+                ))
+        except Exception as e:
+            logger.debug(f"Error parsing Reddit JSON: {e}")
+        return items
 
     def _parse_entry(self, entry, source: str) -> Optional[NewsItem]:
         try:

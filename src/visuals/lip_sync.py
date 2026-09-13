@@ -95,7 +95,7 @@ class FishLipSyncEngine:
         logger.info(f"Generated lip-sync schedule for {len(schedule)} frames ({len(schedule)/self.fps:.1f}s)")
         return schedule
 
-    def render_transparent_anchor_video(self, audio_path: Path, output_video: Path, target_size: Tuple[int, int] = (450, 450)) -> Path:
+    def render_transparent_anchor_video(self, audio_path: Path, output_video: Path, target_size: Tuple[int, int] = (1080, 1080)) -> Path:
         """
         Renders a transparent QuickTime Animation (RLE) or PNG sequence video
         that can be seamlessly overlaid onto the final video using FFmpeg.

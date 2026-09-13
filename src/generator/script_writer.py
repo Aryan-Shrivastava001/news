@@ -24,6 +24,42 @@ class ScriptWriter:
         # Gemini 2.5/2.0 Flash REST endpoint
         self.endpoint = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key={self.api_key}"
 
+    def pick_best_story(self, items: List[NewsItem]) -> Optional[NewsItem]:
+        """
+        The 'Actual AI Brain': Sends the top candidates to Gemini to pick the single most viral story.
+        """
+        if not items:
+            return None
+        if len(items) == 1 or not self.api_key or self.api_key == "your_gemini_api_key_here":
+            return items[0]
+
+        prompt = "You are a YouTube Shorts expert. Read these gaming headlines and pick the ONE story that will get the most views, engagement, and comments. Reply ONLY with the ID of the story.\n\n"
+        for i, item in enumerate(items):
+            prompt += f"ID: {i}\nTitle: {item.title}\nSource: {item.source}\nSummary: {item.summary[:200]}...\n\n"
+
+        try:
+            payload = {
+                "contents": [{"parts": [{"text": prompt}]}],
+                "generationConfig": {"temperature": 0.2}
+            }
+            resp = requests.post(self.endpoint, json=payload, timeout=20)
+            if resp.status_code == 200:
+                data = resp.json()
+                text = data["candidates"][0]["content"]["parts"][0]["text"].strip()
+                # Find the first number in the response
+                import re
+                match = re.search(r'\d+', text)
+                if match:
+                    idx = int(match.group())
+                    if 0 <= idx < len(items):
+                        logger.info(f"AI Brain selected story ID {idx}: {items[idx].title}")
+                        return items[idx]
+        except Exception as e:
+            logger.error(f"Error calling Gemini AI Brain to pick story: {e}")
+
+        logger.info("Falling back to Math Brain's top pick.")
+        return items[0]
+
     def generate_script(self, item: NewsItem) -> ShortScript:
         """
         Generate a high-retention 35-45 second script for YouTube Shorts.
